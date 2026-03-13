@@ -1,5 +1,3 @@
-(Note: Used claude on web at first on accident, will move to terminal for the rest of project)
-
 > Replace the default Vite/React boilerplate with a simple landing page for my app called Recipe Box. 
 It's a personal recipe manager where users can save, organize, and rate their recipes. Just a centered logo/title, short description, and a 'Get Started' button. 
 Use Tailwind CSS for styling. Keep it clean and minimal.
