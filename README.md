@@ -17,7 +17,7 @@ has their own private recipe collection that syncs across devices.
 - React (Vite, JavaScript + SWC)
 - Firebase Auth + Firestore
 - Tailwind CSS
-- Deployed on [Netlify/Vercel]
+- Deployed on Netlify
 
 ## Setup
 1. Clone the repo
