@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 
 const CATEGORIES = ["breakfast", "lunch", "dinner", "dessert", "snack"];
 const OLLAMA_MODEL = "gemma4:e2b";
@@ -31,9 +31,17 @@ Respond with only valid JSON, no extra text.`;
     body: JSON.stringify({ model: OLLAMA_MODEL, prompt, format: "json", stream: false }),
   });
 
-  if (!res.ok) throw new Error(`Ollama error: ${res.status} ${res.statusText}`);
+  if (!res.ok) throw new Error(`connection`);
   const data = await res.json();
-  return JSON.parse(data.response);
+  const raw = typeof data.response === "string" ? data.response : JSON.stringify(data.response);
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("parse");
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("parse");
+  return parsed;
 }
 
 export default function RecipeForm({ onSubmit, onCancel, saving = false, saveError = "", initialData = null }) {
@@ -51,8 +59,6 @@ export default function RecipeForm({ onSubmit, onCancel, saving = false, saveErr
   const [errors, setErrors] = useState({});
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
-  const lastAutofillTitle = useRef("");
-
   // ── AI autofill ───────────────────────────────────────────────
   async function handleAutofill() {
     const title = fields.title.trim();
@@ -61,26 +67,32 @@ export default function RecipeForm({ onSubmit, onCancel, saving = false, saveErr
     setAiError("");
     try {
       const suggestion = await fetchRecipeSuggestion(title);
-      lastAutofillTitle.current = title;
+      const cookTimeNum = parseInt(suggestion.cookTime, 10);
+      const servingsNum = parseInt(suggestion.servings, 10);
       setFields((prev) => ({
         ...prev,
         category: CATEGORIES.includes(suggestion.category) ? suggestion.category : prev.category,
-        cookTime: suggestion.cookTime != null ? String(suggestion.cookTime) : prev.cookTime,
-        servings: suggestion.servings != null ? String(suggestion.servings) : prev.servings,
-        notes: suggestion.notes ?? prev.notes,
+        cookTime: !isNaN(cookTimeNum) ? String(cookTimeNum) : prev.cookTime,
+        servings: !isNaN(servingsNum) ? String(servingsNum) : prev.servings,
+        notes: typeof suggestion.notes === "string" ? suggestion.notes : prev.notes,
       }));
       if (Array.isArray(suggestion.ingredients) && suggestion.ingredients.length > 0) {
         setIngredients(suggestion.ingredients.map((ing) => ({
-          name: ing.name ?? "",
-          amount: ing.amount ?? "",
-          unit: ing.unit ?? "",
+          name: typeof ing.name === "string" ? ing.name : "",
+          amount: ing.amount != null ? String(ing.amount) : "",
+          unit: typeof ing.unit === "string" ? ing.unit : "",
         })));
       }
       if (Array.isArray(suggestion.steps) && suggestion.steps.length > 0) {
-        setSteps(suggestion.steps);
+        setSteps(suggestion.steps.map((s) => String(s)).filter(Boolean));
       }
-    } catch {
-      setAiError("Autofill failed — is Ollama running?");
+    } catch (err) {
+      console.error("Autofill error:", err);
+      setAiError(
+        err.message === "parse"
+          ? "Autofill failed — the model returned an unexpected response."
+          : "Autofill failed — is Ollama running?"
+      );
     } finally {
       setAiLoading(false);
     }
